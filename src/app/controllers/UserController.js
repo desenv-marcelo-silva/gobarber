@@ -14,7 +14,7 @@ class UserController {
     // retornará informações selecionadas. Nem tudo precisa voltar
     const { id, name, email, provider } = await User.create(req.body);
 
-    res.json({
+    return res.json({
       id,
       name,
       email,
