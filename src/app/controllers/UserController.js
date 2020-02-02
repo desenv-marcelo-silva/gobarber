@@ -21,6 +21,10 @@ class UserController {
       provider,
     });
   }
+
+  async update(req, res) {
+    return res.json({ ok: req.userId });
+  }
 }
 
 export default new UserController();
