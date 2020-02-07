@@ -65,7 +65,7 @@ class UserController {
         where: { email },
       });
 
-      if (userExists) {
+      if (userExists && userExists.id !== req.userId) {
         return res.status(400).json({ error: 'Usuário já existe.' });
       }
     }
