@@ -1,9 +1,11 @@
 import * as Yup from 'yup';
-import { isBefore, startOfHour, parseISO } from 'date-fns';
+import { isBefore, startOfHour, parseISO, format } from 'date-fns';
+import pt from 'date-fns/locale/pt'
 
 import User from '../models/User';
 import File from '../models/File';
 import Appointment from '../models/Appointment';
+import Notification from '../schemas/Notifications';
 
 class AppointmentController {
   async index(req, res) {
@@ -37,6 +39,7 @@ class AppointmentController {
   async store(req, res) {
     const schema = Yup.object().shape({
       provider_id: Yup.number().required(),
+      user_id: Yup.number().required(),
       date: Yup.date().required(),
     });
 
@@ -44,7 +47,25 @@ class AppointmentController {
       return res.status(400).json({ error: 'Validation fails.' });
     }
 
-    const { provider_id, date } = req.body;
+    const { provider_id, user_id, date } = req.body;
+
+    /** *
+     * Checar se o provider_id é diferente do user_id
+     */
+    if (user_id === provider_id) {
+      return res.status(400).json({ error: 'Validation fails.'});
+    }
+
+     /** *
+     * Checar se o usuário existe cadastrado
+     */
+    const isValidUser = await User.findOne({
+      where: { id: user_id },
+    });
+
+    if (!isValidUser) {
+      return res.status(400).json({error: 'User does not exits.' });
+    }
 
     /** *
      * Checar se o provider_id é de um provider
@@ -88,9 +109,25 @@ class AppointmentController {
     }
 
     const appointment = await Appointment.create({
-      user_id: req.userId,
+      user_id: user_id,
       provider_id,
       date: hourStart,
+    });
+
+    /**
+     * Notify provider
+     */
+    const user = await User.findByPk(provider_id);
+
+    const formattedDate = format(
+      hourStart,
+      "'dia' dd 'de' MMMM',  às' H:mm'h'",
+      { locale: pt }
+    );
+
+    await Notification.create({
+      content: `Novo agendamento de ${user.name} para ${formattedDate}`,
+      user: provider_id,
     });
 
     return res.json(appointment);
