@@ -1,11 +1,12 @@
 import * as Yup from 'yup';
 import { isBefore, startOfHour, parseISO, format, subHours } from 'date-fns';
-import pt from 'date-fns/locale/pt'
+import pt from 'date-fns/locale/pt';
 
 import User from '../models/User';
 import File from '../models/File';
 import Appointment from '../models/Appointment';
 import Notification from '../schemas/Notifications';
+import Mail from '../../lib/Mail';
 
 class AppointmentController {
   async index(req, res) {
@@ -53,10 +54,10 @@ class AppointmentController {
      * Checar se o provider_id é diferente do user_id
      */
     if (user_id === provider_id) {
-      return res.status(400).json({ error: 'Validation fails.'});
+      return res.status(400).json({ error: 'Validation fails.' });
     }
 
-     /** *
+    /** *
      * Checar se o usuário existe cadastrado
      */
     const isValidUser = await User.findOne({
@@ -64,7 +65,7 @@ class AppointmentController {
     });
 
     if (!isValidUser) {
-      return res.status(400).json({error: 'User does not exits.' });
+      return res.status(400).json({ error: 'User does not exits.' });
     }
 
     /** *
@@ -109,7 +110,7 @@ class AppointmentController {
     }
 
     const appointment = await Appointment.create({
-      user_id: user_id,
+      user_id,
       provider_id,
       date: hourStart,
     });
@@ -134,21 +135,39 @@ class AppointmentController {
   }
 
   async delete(req, res) {
-    const appointment = Appointment.findByPk(req.params.id);
+    const appointment = await Appointment.findByPk(req.params.id, {
+      include: [
+        {
+          model: User,
+          as: 'provider',
+          attributes: ['name', 'email'],
+        },
+      ],
+    });
 
     if (appointment.user_id !== req.userId) {
-      return res.status(401).json({error: "You don't have permission to cancel this appointment."});
+      return res.status(401).json({
+        error: "You don't have permission to cancel this appointment.",
+      });
     }
 
     const dateWithSub = subHours(appointment.date, 2);
 
     if (isBefore(dateWithSub, new Date())) {
-      return res.status(401).json({error: 'You can only cancel appointments 2 hours in advance.'});
+      return res.status(401).json({
+        error: 'You can only cancel appointments 2 hours in advance.',
+      });
     }
 
     appointment.cancelled_at = new Date();
-
     await appointment.save();
+
+    await Mail.sendMail({
+      to: `${appointment.provider.name} <${appointment.provider.email}>`,
+      subject: 'Agendamento cancelado.',
+      text: 'Você tem um novo cancelamento',
+    });
+
     return res.json(appointment);
   }
 }
