@@ -1,3 +1,3 @@
 export default {
-  dsn: 'https://',
+  dsn: process.env.SENTRY_DSN,
 };
